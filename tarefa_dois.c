@@ -5,12 +5,9 @@
 #include "inc/ssd1306.h"
 #include "hardware/i2c.h"
 #include "hardware/uart.h"
+#include "hardware/adc.h"
 
-#define BOTAO_A 5
-#define BOTAO_B 6
-
-#define LED_VERMELHO 13
-#define LED_VERDE 11
+#include "portas_logicas.c"
 
 const uint I2C_SDA = 14;
 const uint I2C_SCL = 15;
@@ -22,83 +19,6 @@ struct render_area frame_area = {
     start_page : 0,
     end_page : ssd1306_n_pages - 1
 };
-
-// Simula a porta AND (E ou Conjunção)
-void porta_and() {
-    if (gpio_get(BOTAO_A) == 0 && gpio_get(BOTAO_B) == 0) {
-        gpio_put(LED_VERMELHO, 0);
-        gpio_put(LED_VERDE, 1);
-    } else {
-        gpio_put(LED_VERMELHO, 1);
-        gpio_put(LED_VERDE, 0);
-    }
-}
-
-// Simula a porta OR (Ou ou Disjunção)
-void porta_or() {
-    if (gpio_get(BOTAO_A) == 0 || gpio_get(BOTAO_B) == 0) {
-        gpio_put(LED_VERMELHO, 0);
-        gpio_put(LED_VERDE, 1);
-    } else {
-        gpio_put(LED_VERMELHO, 1);
-        gpio_put(LED_VERDE, 0);
-    }
-}
-
-// Simula a porta NOT (Negação)
-void porta_not() {
-    if (gpio_get(BOTAO_A) == 0) {
-        gpio_put(LED_VERMELHO, 0);
-        gpio_put(LED_VERDE, 1);
-    } else {
-        gpio_put(LED_VERMELHO, 1);
-        gpio_put(LED_VERDE, 0);
-    }
-}
-
-// Simula a porta NAND
-void porta_nand() {
-    if (gpio_get(BOTAO_A) == 0 && gpio_get(BOTAO_B) == 0) {
-        gpio_put(LED_VERMELHO, 1);
-        gpio_put(LED_VERDE, 0);
-    } else {
-        gpio_put(LED_VERMELHO, 0);
-        gpio_put(LED_VERDE, 1);
-    }
-}
-
-// Simula a porta NOR 
-void porta_nor() {
-    if (gpio_get(BOTAO_A) && gpio_get(BOTAO_B)) {
-        gpio_put(LED_VERMELHO, 0);
-        gpio_put(LED_VERDE, 1);
-    } else {
-        gpio_put(LED_VERMELHO, 1);
-        gpio_put(LED_VERDE, 0);
-    }
-}
-
-// Simula a porta XOR (Ou Exclusiva)
-void porta_xor() {
-    if (gpio_get(BOTAO_A) != gpio_get(BOTAO_B)) {
-        gpio_put(LED_VERMELHO, 0);
-        gpio_put(LED_VERDE, 1);
-    } else {
-        gpio_put(LED_VERMELHO, 1);
-        gpio_put(LED_VERDE, 0);
-    }
-}
-
-// Simula a porta XNOR
-void porta_xnor() {
-    if (gpio_get(BOTAO_A) == gpio_get(BOTAO_B)) {
-        gpio_put(LED_VERMELHO, 0);
-        gpio_put(LED_VERDE, 1);
-    } else {
-        gpio_put(LED_VERMELHO, 1);
-        gpio_put(LED_VERDE, 0);
-    }
-}
 
 int main()
 {
@@ -139,12 +59,72 @@ int main()
     memset(ssd, 0, ssd1306_buffer_length);
     render_on_display(ssd, &frame_area);
 
-    ssd1306_draw_string(ssd, 80, 80, "Bem-vindos!");
-    render_on_display(ssd, &frame_area);
+    // Configuração do Joystick
+    adc_init();
+
+    adc_gpio_init(26);
+    adc_gpio_init(27);
+
+    uint porta = 0;
 
     while (true) {
-        porta_xnor();
+        adc_select_input(0);
+        uint adc_y_raw = adc_read();
+        
+        // Verifica se o usuário direcionou o Joystick para cima
+        if (adc_y_raw > 4000) {
+            if (porta < 6) {
+                porta += 1;
+                memset(ssd, 0, ssd1306_buffer_length);
+            }  
+        } else if (adc_y_raw < 100) {
+            if (porta > 0) {
+                porta -= 1;
+                memset(ssd, 0, ssd1306_buffer_length);
+            }  
+        }
 
+        switch (porta)
+        {
+        case 0:
+            porta_and();
+            ssd1306_draw_string(ssd, 50, 25, "AND");
+            break;
+        case 1: {
+            porta_or();
+            ssd1306_draw_string(ssd, 50, 25, "OR");
+            break;
+        }
+        case 2: {
+            porta_not();
+            ssd1306_draw_string(ssd, 50, 25, "NOT");
+            break;
+        }
+        case 3: {
+            porta_nand();
+            ssd1306_draw_string(ssd, 50, 25, "NAND");
+            break;
+        }
+        case 4: {
+            porta_nor();
+            ssd1306_draw_string(ssd, 50, 25, "NOR");
+            break;
+        }
+        case 5: {
+            porta_xor();
+            ssd1306_draw_string(ssd, 50, 25, "XOR");
+            break;
+        }
+        case 6: {
+            porta_xnor();
+            ssd1306_draw_string(ssd, 50, 25, "XNOR");
+            break;
+        }
+        default:
+            break;
+        }
+
+        render_on_display(ssd, &frame_area);
         sleep_ms(100);
     }
 }
